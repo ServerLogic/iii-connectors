@@ -31,14 +31,74 @@
  */
 class locum_iii_2009 {
 
+  // <CraftySpace+>
+  protected $locum;
+  // </CraftySpace+>
+  /* <CraftySpace->
   public $locum_config;
+  // </CraftySpace-> */
 
   /**
    * Prep this class
    */
   public function __construct() {
+    /* <CraftySpace->
     require_once('patronapi.php');
+    // </CraftySpace-> */
   }
+  
+  // <CraftySpace+>
+  /**
+  * Setup object after locum object has been passed in.
+  * Automatically called by locum_config.module.
+  *
+  */
+  function init(&$locum) {
+    $this->locum =& $locum;
+    require_once('patronapi.php');
+    $config_file_path = realpath(dirname(__FILE__)) . '/config/locum_iii_2007.ini';
+    if (file_exists($config_file_path)) {
+      $config = parse_ini_file($config_file_path, true);
+      $this->locum->locum_config = array_merge($this->locum->locum_config, $config);
+    }
+  }
+  // </CraftySpace+>
+  
+  //<CraftySpace+ type="INTERNAL">
+  /**
+   * Use locum's parallel url getting feature to cache the ILS data for all the needed bibs.
+   */
+  public function scrape_bib_prefetch($bnums, $skip_cover = FALSE) {
+    // preload all the record urls
+    $iii_webcat = $this->locum_config[ils_config][ils_server];
+    $iii_webcat_port = $this->locum_config[ils_config][ils_harvest_port];
+    $urls = array();
+    foreach ($bnums as $bnum) {
+      $urls[] = 'http://' . $iii_webcat . ':' . $iii_webcat_port . '/xrecord=b' . trim($bnum);
+    }
+    $records = $this->locum->url_get_contents($urls);
+    
+    // preload the cover images
+    // <CraftySpace+>
+    if (!$skip_cover  && is_array($records)) {
+    // </CraftySpace+>
+    /* <CraftySpace->
+    if (!$skip_cover) {
+    // </CraftySpace-> */
+      $stdnums = array();
+      foreach ($records as $record) {
+        $xrecord = @simplexml_load_string($record);
+        if (!$xrecord->NULLRECORD && $xrecord->VARFLD && $xrecord->VARFLD[0] && $xrecord->VARFLD[0]->MARCINFO) {
+          $bib_info_marc = $this->parse_marc_subfields($xrecord->VARFLD);
+          unset($xrecord);
+          $stdnum = $this->prepare_marc_values($bib_info_marc['020'], array('a'));
+          $stdnums[] = $stdnum[0];
+        }
+      }
+      $this->locum->get_cover_img_prefetch($stdnums);
+    }
+  }
+  //</CraftySpace+>
 
   /**
    * Grabs bib info from XRECORD and returns it in a Locum-ready array.
@@ -95,7 +155,12 @@ class locum_iii_2009 {
           if (trim($bil_obj->FIXVALUE) == '') {
             $bil_obj->FIXVALUE = "-";
           }
+          // <CraftySpace+>
+          $bib['suppress'] = in_array(trim($bil_obj->FIXVALUE), $this->locum->csv_parser($this->locum->locum_config['ils_custom_config']['suppress_codes'])) ? 1 : 0;
+          // </CraftySpace+>
+          /* <CraftySpace->
           $bib['suppress'] = in_array(trim($bil_obj->FIXVALUE), locum::csv_parser($this->locum_config['ils_custom_config']['suppress_codes'])) ? 1 : 0;
+          // </CraftySpace-> */
           break;
 
       }
@@ -308,6 +373,26 @@ class locum_iii_2009 {
     return $bib;
   }
 
+  // <CraftySpace+ type="INTERNAL">  
+  /**
+   * prefetch bib items for item_status
+   *
+   * @param array $bnums Bib numbers to preload
+   */
+  public function item_status_prefetch($bnums) {
+    $iii_webcat = $this->locum_config[ils_config][ils_server];
+    $iii_webcat_port = $this->locum_config[ils_config][ils_harvest_port];
+    $avail_token = $this->locum->csv_parser($this->locum_config[ils_custom_config][iii_available_token]);
+    
+    $urls = array();
+    foreach ($bnums as $bnum) {
+      $bnum = trim($bnum);
+      $urls[] = 'http://' . $iii_webcat . '/record=b' . $bnum . '~S3';
+    }
+    $records = $this->locum->url_get_contents($urls);
+  }
+  // </CraftySpace+>
+  
   /**
    * Parses item status for a particular bib item.
    *
@@ -315,15 +400,38 @@ class locum_iii_2009 {
    * @return array Returns a Locum-ready availability array
    */
   public function item_status($bnum) {
+    //print $bnum;    
     $iii_server_info = self::iii_server_info();
-    $avail_token = locum::csv_parser($this->locum_config['iii_custom_config']['iii_available_token']);
+
+    // <CraftySpace+>
+    $avail_token = $this->locum->csv_parser($this->locum->locum_config['ils_custom_config']['iii_available_token']);
+    $default_age = $this->locum->locum_config['iii_custom_config']['default_age'];
+    $default_branch = $this->locum->locum_config['iii_custom_config']['default_branch'];
+    // Default to locum_config module not to connector config file
+    if (is_array($this->locum->locum_config['locations'])) {
+      $loc_codes_flipped = array_flip($this->locum->locum_config['locations']);
+    }
+    else {$loc_codes_flipped = array_flip($this->locum->locum_config['iii_location_codes']);}
+    // </CraftySpace+>
+    /* <CraftySpace->
+    $avail_token = locum::csv_parser($this->locum_config['ils_custom_config']['iii_available_token']);
     $default_age = $this->locum_config['iii_custom_config']['default_age'];
     $default_branch = $this->locum_config['iii_custom_config']['default_branch'];
     $loc_codes_flipped = array_flip($this->locum_config['iii_location_codes']);
+    // </CraftySpace-> */
     $bnum = trim($bnum);
 
     // Grab Hold Numbers
-    $url = $iii_server_info['nosslurl'] . '/search~S24/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/marc~' . $bnum . '&FF=&1,0,';
+    
+    // original implementation
+    // $url = $iii_server_info['nosslurl'] . '/search~S5/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/marc~' . $bnum . '&FF=&1,0,';
+    
+    // Craftyspace implementation  
+    $url = $iii_server_info['nosslurl'] . '/search~S16/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/marc~' . $bnum . '&FF=&1,0,';
+    
+    // new implementation
+    // $url = $iii_server_info['nosslurl'] . '/search~S24/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/marc~' . $bnum . '&FF=&1,0,';
+
     $hold_page_raw = utf8_encode(file_get_contents($url));
 
     // Reserves Regex
@@ -342,7 +450,14 @@ class locum_iii_2009 {
       $avail_array['orders'][] = $order_txt;
     }
 
-    $url = $iii_server_info['nosslurl'] . '/search~S24/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/holdings~' . $bnum . '&FF=&1,0,';
+    // old version
+    // $url = $iii_server_info['nosslurl'] . '/search~S5/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/holdings~' . $bnum . '&FF=&1,0,';
+    // new version
+    // $url = $iii_server_info['nosslurl'] . '/search~S24/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/holdings~' . $bnum . '&FF=&1,0,';
+    // craftyspace version
+    $url = $iii_server_info['nosslurl'] . '/search~S16/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/holdings~' . $bnum . '&FF=&1,0,';
+    
+    //print "<p>$url</p>";
     $avail_page_raw = utf8_encode(file_get_contents($url));
 
     $row_count = preg_match_all('%<tr.+?bibItemsEntry.+?>(.+?)</tr>%s', $avail_page_raw, $rowmatch);
@@ -377,14 +492,20 @@ class locum_iii_2009 {
       }
 
       // Determine age from location
+      // <CraftySpace+>
+      if (count($this->locum->locum_config['iii_record_ages'])) {
+        foreach ($this->locum->locum_config['iii_record_ages'] as $item_age => $match_crit) {
+      // </CraftySpace+>
+      /* <CraftySpace->
       if (count($this->locum_config['iii_record_ages'])) {
         foreach ($this->locum_config['iii_record_ages'] as $item_age => $match_crit) {
+      // </CraftySpace-> */
           if (preg_match('/^\//', $match_crit)) {
             if (preg_match($match_crit, $item['loc_code'])) {
               $item['age'] = $item_age;
             }
           } else {
-            if (in_array($item['loc_code'], locum::csv_parser($match_crit))) {
+            if (in_array($item['loc_code'], $this->locum->csv_parser($match_crit))) {
               $item['age'] = $item_age;
             }
           }
@@ -392,19 +513,29 @@ class locum_iii_2009 {
       }
 
       // Determine branch from location
+      // <CraftySpace+>
+      if (count($this->locum->locum_config['branch_assignments'])) {
+        foreach ($this->locum->locum_config['branch_assignments'] as $branch_code => $match_crit) {
+      // </CraftySpace+>
+      /* <CraftySpace->
       if (count($this->locum_config['branch_assignments'])) {
         foreach ($this->locum_config['branch_assignments'] as $branch_code => $match_crit) {
+      // </CraftySpace-> */
           if (preg_match('/^\//', $match_crit)) {
             if (preg_match($match_crit, $item['loc_code'])) {
               $item['branch'] = $branch_code;
             }
           } else {
-            if (in_array($item['loc_code'], locum::csv_parser($match_crit))) {
+            if (in_array($item['loc_code'], $this->locum->csv_parser($match_crit))) {
               $item['branch'] = $branch_code;
+            }
             }
           }
         }
       }
+  //    echo '<pre style="background-color:#fff; color: #000;">';
+  //print_r($item);
+  //echo '</pre>';
 
       $avail_array['items'][] = $item;
     }
@@ -437,7 +568,7 @@ class locum_iii_2009 {
     $pdata['address'] = preg_replace('%\$%s', "\n", $papi_data['ADDRESS']);
     $pdata['tel1'] = $papi_data['TELEPHONE'];
     if ($papi_data['TELEPHONE2']) { $pdata['tel2'] = $papi_data['TELEPHONE2']; }
-    $pdata['email'] = $papi_data['EMAILADDR'];
+    $pdata['email'] = $papi_data['EMAIL'];
 
     return $pdata;
   }
@@ -453,6 +584,19 @@ class locum_iii_2009 {
     $iii = $this->get_tools($cardnum, $pin);
     if ($iii->catalog_login() == FALSE) { return FALSE; }
     return $iii->get_patron_items();
+  }
+  
+    /**
+   * Returns an array of patron checkouts
+   *
+   * @param string $cardnum Patron barcode/card number
+   * @param string $pin Patron pin/password
+   * @return boolean|array Array of patron checkouts or FALSE if login fails
+   */
+  public function preferred_searches($cardnum, $pin = NULL) {
+    $iii = $this->get_tools($cardnum, $pin);
+    if ($iii->catalog_login() == FALSE) { return FALSE; }
+    return $iii->get_preferred_searches($cardnum, $pin);
   }
 
   /**
@@ -736,6 +880,18 @@ class locum_iii_2009 {
     return $iii;
   }
 
+// <CraftySpace+>
+  private function iii_server_info() {
+    $server_select = strtolower(trim($this->locum->locum_config['ils_config']['server_select']));
+    $iii_server_info['server'] = $this->locum->locum_config['ils_config']['ils_server'];
+    $iii_server_info['nosslport'] = $this->locum->locum_config['ils_config']['ils_' . $server_select . '_port'];
+    $iii_server_info['nosslurl'] = 'http://' . $iii_server_info['server'] . ':' . $iii_server_info['nosslport'];
+    $iii_server_info['sslport'] = $this->locum->locum_config['ils_config']['ils_' . $server_select . '_port_ssl'];
+    $iii_server_info['sslurl'] = 'https://' . $iii_server_info['server'] . ':' . $iii_server_info['sslport'];
+    return $iii_server_info;
+  }
+// </CraftySpace+>
+/* <CraftySpace->
   private function iii_server_info() {
     $server_select = strtolower(trim($this->locum_config['ils_config']['server_select']));
     $iii_server_info['server'] = $this->locum_config['ils_config']['ils_server'];
@@ -745,5 +901,6 @@ class locum_iii_2009 {
     $iii_server_info['sslurl'] = 'https://' . $iii_server_info['server'] . ':' . $iii_server_info['sslport'];
     return $iii_server_info;
   }
+// </CraftySpace-> */
 
 }

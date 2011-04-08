@@ -12,7 +12,7 @@
  * This is a standalone class that interacts with the III webpac.
  * It provides a PHP interface to all interactive functions within the III webpac.
  *
- * In order to be actively logged in, you must set either $cardnum or $pnum as well
+ * In order to be actively logged in, you must set either $cardnum or $pnum as well 
  * as $pin, even if your library doesn't use pins.  If that's the case, then $pin
  * can be set to anything.
  **/
@@ -58,8 +58,8 @@ class iiitools {
     self::catalog_logout();
     if (is_file($this->cookie)) {
       curl_close($this->ch);
-      unset($this->ch);
-      unlink($this->cookie);
+      unset($this->ch); 
+      unlink($this->cookie); 
     }
   }
 
@@ -86,7 +86,7 @@ class iiitools {
     $this->iii_server_info = $iii_server_info;
     $this->papi->iiiserver = $iii_server_info['server'];
   }
-
+  
   /**
    * Sets the pin for the current $pnum or $cardnum within the active instansiation
    *
@@ -114,7 +114,7 @@ class iiitools {
    * @param string $pnum Patron ID number (optional)
    */
   public function set_cookie_file($cardnum = NULL, $pnum = NULL) {
-
+    
     $cookie_dir = '/tmp/cookies_iii';
     if (!is_dir($cookie_dir)) {
       if (is_file($cookie_dir)) {
@@ -139,8 +139,8 @@ class iiitools {
   public function catalog_login() { // TODO add boolean result
     if (!isset($this->patroninfo)) { exit('Patron Info not yet initialized'); }
     if (!$this->pin) { exit('PIN not yet set'); }
-    $form_url = "patroninfo~S24/";
-  $this->my_curl_exec($form_url, NULL, NULL, NULL, TRUE, TRUE, TRUE);
+    $form_url = "patroninfo~S5/";
+	$this->my_curl_exec($form_url, NULL, NULL, NULL, TRUE, TRUE, TRUE);
     $postvars = 'name=' . $this->patroninfo['PATRNNAME'] . '&code=' . $this->cardnum . '&pin=' . $this->pin;
     return self::my_curl_exec($form_url, $postvars, NULL, NULL, TRUE);
     return TRUE;
@@ -162,10 +162,10 @@ class iiitools {
    */
   public function get_patron_items($sort_by_due = TRUE) {
     if ($sort_by_due) {
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/items?sortByDueDate=SORT+BY+DUE+DATE';
-  }
-  else {
-      $url_suffix = 'patroninfo~S24/' . $this->pnum . '/items';
+	  $url_suffix = 'patroninfo~S5/' . $this->pnum . '/items?sortByDueDate=SORT+BY+DUE+DATE';
+	} 
+	else {
+      $url_suffix = 'patroninfo~S5/' . $this->pnum . '/items';
     }
     $result = self::my_curl_exec($url_suffix);
     return self::parse_patron_items($result['body']);
@@ -177,9 +177,9 @@ class iiitools {
    * @return array An array of items checked out.
    */
   public function get_patron_history_items() {
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/readinghistory';
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/readinghistory';
     $result = self::my_curl_exec($url_suffix);
-    $result = self::parse_patron_history_items($result['body']);
+    $result = self::parse_patron_history_items($result['body']);	
     return $result;
   }
   /**
@@ -189,8 +189,12 @@ class iiitools {
    * @return array An array of items checked out.
    */
   public function parse_patron_history_items($itemslist_raw) {
+//$regex = '%<input type="checkbox" name="(.+?)" />.+?patFuncTitle"><a href="/record=b(.+?)~S5">(.+?)</a>.+?patFuncAuthor">(.+?)</td>.+?patFuncDate">(.+?)</td>.+?"patFuncDetails">(.+?)</td>%s';
     //print_r ($itemslist_raw);
-    $regex = '%<input type="checkbox" name="(.+?)" />.+?patFuncTitle"><a href="/record=b(.+?)~S24">(.+?)</a>.+?patFuncAuthor">(.+?)</td>.+?patFuncDate">(.+?)</td>.+?"patFuncDetails">(.+?)</td>%s';
+    // $regex = '%<input type="checkbox" name="(.+?)" />.+?patFuncTitle"><a href="/record=b(.+?)~S5">(.+?)</a>.+?patFuncAuthor">(.+?)</td>.+?patFuncDate">(.+?)</td>.+?"patFuncDetails">(.+?)</td>%s';
+	
+    $regex = '%patFuncEntry.+?patFuncMark.+?name="(.+?)".+?patFuncTitle.+?<a href="/record=b(.+?)~S5">(.+?)</a>.+?patFuncStatus">(.+?)</td>.+?patFuncAuthor">(.+?)</td>.+?patFuncDate">(.+?)</td>.+?patFuncDetails">(.+?)</td>%s';
+	
     $count = preg_match_all($regex, $itemslist_raw, $rawmatch);
     for ($i=0; $i < $count; $i++) {
       $items[$i]['varname'] = trim($rawmatch[1][$i]);
@@ -226,7 +230,7 @@ class iiitools {
       }
     }
     else { return FALSE; }
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/readinghistory/' . $action;
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/readinghistory/' . $action;
     $result = self::my_curl_exec($url_suffix);
     $success = strpos($result['body'], 'readinghistory/' . $goal) !== FALSE;
     return $success;
@@ -239,7 +243,7 @@ class iiitools {
    */
   public function delete_patron_history($which = array()) {
     if (!count($which)) { return FALSE; }
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/readinghistory/';
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/readinghistory/';
     if ($which[0] == 'all') {
       $result = self::my_curl_exec($url_suffix . 'rah');
       $success = strpos($result['body'], 'No Reading History Available' . $goal) !== FALSE;
@@ -295,14 +299,14 @@ class iiitools {
     }
     return $item;
   }
-
+  
   /**
    * Returns an array of on-hold items.
    *
    * @return array An array of on-hold items.
    */
   public function get_patron_holds() {
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/holds';
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/holds';
     $result = self::my_curl_exec($url_suffix);
 
     $row_count = preg_match_all('%<tr.+?patFuncEntry.+?>(.+?)</tr>%s', $result['body'], $rowmatch);
@@ -318,6 +322,9 @@ class iiitools {
       // Parse individual cell data
       preg_match('%name="(.+?)"%s', $item_data['patFuncMark'], $mark_match);
       $item[$i]['varname'] = $mark_match[1];
+	  $item[$i]['status'] = trim($rawmatch[4][$i]);
+	  // pickuploc to be handled differently below
+	  // $item[$i]['pickuploc'] = trim($rawmatch[5][$i]);
 
       preg_match('%record=b([0-9]{7})%s', $item_data['patFuncTitle'], $title_match);
       if ($title_match[1]) {
@@ -333,7 +340,50 @@ class iiitools {
       if ((!preg_match('/of/i', $status)) && (!preg_match('/ready/i', $status)) && (!preg_match('/RECEIVED/i', $status))) {
         $status = "In Transit";
       }
-      $item[$i]['status'] = $status;
+      $item[$i]['status'] = $status;     
+/*
+			// Show only the name of the pickup location, not a select list of all branches
+			$options = preg_split('/\<\/option\>/i', $hold['pickuploc']);
+			foreach($options as $option) {
+				if (preg_match('/selected=["\']?selected/', $option) && preg_match('/.*\>(.+)$/', $option, $matches)) {
+					$hold['pickuploc'] = $matches[1];
+					break;
+				}
+			}
+			
+			
+    $hold_to_theme['pickup'] = array(
+      '#type' => 'markup',
+      '#value' => $hold['pickuploc']['options'][$hold['pickuploc']['selected']],
+    );
+      */
+      // <CraftySpace+>
+		
+
+      $pickup_string = trim($rawmatch[5][$i]);
+	
+      $select_exists = preg_match('/select name=(.+?)>/is', $pickup_string, $pickup_var_match);
+	  
+      if ($select_exists) {
+        $select_count = preg_match_all('/option value="(.+?)"(.+?)>(.+?)<\/option>/is', $pickup_string, $pickup_string_var_match);
+
+        $item[$i]['pickuploc']['selectid'] = trim($pickup_var_match[1]);			
+        $item[$i]['pickuploc']['options'] = array();
+        for ($j=0; $j < $select_count; $j++) {
+          $item[$i]['pickuploc']['options'][trim($pickup_string_var_match[1][$j])] = trim($pickup_string_var_match[3][$j]);
+          if (trim($pickup_string_var_match[2][$j])) {
+            $item[$i]['pickuploc']['selected'] = trim($pickup_string_var_match[1][$j]);
+          }
+        }
+      }
+      // Simulate select control if there isn't one.
+      elseif ($pickup_string) {
+      	$item[$i]['pickuploc']['selectid'] = $pickup_string;
+      	$item[$i]['pickuploc']['options'] = array($pickup_string => $pickup_string);
+      	$item[$i]['pickuploc']['selected'] = $pickup_string;
+      	
+      }
+      // </CraftySpace+>
 
       $item[$i]['pickuploc'] = trim($item_data['patFuncPickup']);
 
@@ -364,7 +414,8 @@ class iiitools {
    * @return array my_curl_exec result array
    */
   public function place_hold($bnum = NULL, $inum = NULL, $pickup_loc = NULL) {
-    $url_suffix = 'search~S24/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/request~b' . $bnum;
+
+    $url_suffix = 'search~S16/.b' . $bnum . '/.b' . $bnum . '/1,1,1,B/request~b' . $bnum;
     $postvars[] = 'name=' . urlencode($this->patroninfo['PATRNNAME']);
     $postvars[] = 'code=' . $this->cardnum;
     $postvars[] = 'pin=' . $this->pin;
@@ -377,18 +428,18 @@ class iiitools {
     }
     if ($pickup_loc) { $postvars[] = 'loc=' . $pickup_loc; }
     $post = implode('&', $postvars);
-
+	
     // To make sure the record has been freed.  Otherwise we run in to a race condition.
     usleep(300000);
-
-    $result = self::my_curl_exec($url_suffix, $post);
-
+    
+    $result = self::my_curl_exec($url_suffix, $post);    
+	
     if (preg_match('/Your request for(.*?)was successful/is', $result['body'])) {
-      $result['success'] = 1;
+      $result['success'] = 1;	  
     } else {
-      $result['success'] = 0;
+      $result['success'] = 0;	  
     }
-
+    
     if (preg_match('/<font color="red" size="(.+?)">(.+?)<\/font>/is', $result['body'], $error_match)) {
       $result['error'] = trim($error_match[2]);
     }
@@ -437,7 +488,7 @@ class iiitools {
    * @return array my_curl_exec result array
    */
   public function update_holds($cancelholds = array(), $holdfreezes_to_update, $pickup_locations = array()) {
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/holds?updateholdssome=YES';
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/holds?updateholdssome=TRUE';
 
     $holds = self::get_patron_holds();
 
@@ -491,6 +542,7 @@ class iiitools {
     return $result; // TODO make the return info a little more useful - Handle errors, etc
   }
 
+
   /**
    * Cancel a hold on a particular item or list of items.
    *
@@ -498,7 +550,7 @@ class iiitools {
    * @return array my_curl_exec result array
    */
   public function cancel_holds($holdvars) {
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/holds?updateholdssome=YES';
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/holds?updateholdssome=YES';
     foreach ($holdvars as $var1 => $var2) {
       $getvars[] = $var2 . '=on';
     }
@@ -508,7 +560,7 @@ class iiitools {
     $result = self::my_curl_exec($url_suffix);
     return $result; // TODO make the return info a little more useful - Handle errors, etc
   }
-
+  
   /**
    * Cancel a hold on a particular item or list of items.
    *
@@ -516,7 +568,7 @@ class iiitools {
    * @return array my_curl_exec result array
    */
   public function update_holdfreezes($holdfreezes_to_update) {
-    $url_suffix = 'patroninfo~S24/' . $this->pnum . '/holds?updateholdssome=YES';
+    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/holds?updateholdssome=YES';
     foreach ($holdfreezes_to_update as $bnum => $freeze) {
       $getvars[] = 'freezeb' . $bnum . '=' . ((int) $freeze ? 'on' : 'off');
     }
@@ -525,6 +577,56 @@ class iiitools {
     usleep(300000); // To make sure the record has been freed.
     $result = self::my_curl_exec($url_suffix);
     return $result; // TODO make the return info a little more useful - Handle errors, etc
+  }
+  
+  /**
+   * Return a list of Preferred Searcheds.
+   *
+   */
+   public function get_preferred_searches() {
+	    $url_suffix = 'patroninfo~S5/' . $this->pnum . '/getpsearches';
+    	$result = self::my_curl_exec($url_suffix);
+    	$result = self::parse_preferred_search_items($result['body']);	
+    	return $result; 
+   }
+   
+   public function parse_preferred_search_items($itemlist_raw){
+		$regex = '%patFuncEntry.+?patFuncMark.+?name="(.+?)".+?patFuncMark.+?name="(.+?)".+?patFuncTitle">(.+?)</td>.+?patFuncPSrchBtn.+?<a href="/(.+?)/(.+?)/searchcatalog/(.+?)">(.+?)</a>%s';
+		
+		$count = preg_match_all($regex, $itemlist_raw, $rawmatch);
+
+    for ($i=0; $i < $count; $i++) {
+      $item[$i]['title'] = trim($rawmatch[3][$i]);
+	  $item[$i]['url'] =   trim($rawmatch[5][$i]);
+	  $item[$i]['test1'] = trim($rawmatch[6][$i]);
+	  $item[$i]['test2'] = trim($rawmatch[7][$i]);
+	  $item[$i]['test3'] = trim($rawmatch[8][$i]);
+	  $item[$i]['test4'] = trim($rawmatch[1][$i]);
+	  $item[$i]['test5'] = trim($rawmatch[2][$i]);
+	  $item[$i]['test6'] = trim($rawmatch[4][$i]);
+    }
+    return $item;
+  }
+  
+  /**
+  Create a Preferred Search
+  **/
+  public function place_preferred($stype, $sarg) {
+	  $stype = 'X';
+	  $sarg = 'cats';
+
+    $url_suffix = 'search~S1666666/' . $this->pnum . '/?searchtype=' . $stype . '/?searcharg=' . $sarg . '/&searchscope=5&SUBPREF=Save+as+your+preferred+search%3F&searchlimits=&searchorigarg=' . $stype . $sarg;
+    $postvars[] = 'name=' . urlencode($this->patroninfo['PATRNNAME']);
+    $postvars[] = 'code=' . $this->cardnum;
+    $postvars[] = 'pin=' . $this->pin;
+	$postvars[] = 'submit=SUBMIT';
+    
+    $post = implode('&', $postvars);	
+	
+    // To make sure the record has been freed.  Otherwise we run in to a race condition.
+    usleep(300000);
+    
+    $result = self::my_curl_exec($url_suffix, $post);
   }
 
   /**
@@ -541,14 +643,14 @@ class iiitools {
         $get_args[] = $varname . '=' . $inum;
       }
       $args = implode('&', $get_args);
-      $url_suffix = 'patroninfo~S24/' . $this->pnum . '/items?renewsome=YES&' . $args;
+       $url_suffix = 'patroninfo~S5/' . $this->pnum . '/items?renewsome=YES&' . $args;
     } else if (strtolower($renew_arg) == 'all') {
-      $url_suffix = 'patroninfo~S24/' . $this->pnum . '/items?renewall';
+      $url_suffix = 'patroninfo~S5/' . $this->pnum . '/items?renewall';
     }
     usleep(300000); // To make sure the record has been freed.
     $result = self::my_curl_exec($url_suffix);
     return self::parse_patron_renews($result['body'], $renew_arg);
-
+  
   }
 
   /**
@@ -571,7 +673,7 @@ class iiitools {
         $regex = sprintf($regex_indiv, $varname, $inum_reg);
         preg_match($regex, $renewlist_raw, $rawmatch);
         $extra = $rawmatch[3];
-        if (preg_match('/Renewed(.*?)time/i', $extra, $renew_match)) {
+        if (preg_match('/Renewed(.*?)time/i', $extra, $renew_match)) { 
           $renew_res[$inum]['num_renews'] = (int) trim($renew_match[1]);
         } else {
           $renew_res[$inum]['num_renews'] = 0;
@@ -582,7 +684,7 @@ class iiitools {
         $renew_res[$inum]['varname'] = $varname;
         $renew_res[$inum]['new_duedate'] = self::date_to_timestamp($rawmatch[2]);
       }
-    // If remewing all items
+    // If renewing all items
     } else {
       if (strtolower($renew_arg) == 'all') {
         $regex = $regex_rnall;
@@ -595,7 +697,8 @@ class iiitools {
           } else {
             $renew_res[$inums[$key]]['num_renews'] = 0;
           }
-          if (preg_match('/color=\"red\">(.*?)</i', $extra, $error_match)) {
+          if (preg_match('/class=\"errormessage\">(.*?)</d', $extra, $error_match)) {
+          #if (preg_match('/color=\"red\">(.*?)</i', $extra, $error_match)) {
             $renew_res[$inums[$key]]['error'] = ucwords(strtolower(trim($error_match[1])));
           }
         }
@@ -618,7 +721,7 @@ class iiitools {
   * @return string HTML body from the fine payment screen
   */
   function get_patron_fines() {
-    $url_suffix = 'webapp/iii/ecom/pay.do?scope=3&ptype=' . $this->patroninfo['PTYPE'] . '&tty=300';
+    $url_suffix = 'webapp/iii/ecom/pay.do?scope=5&ptype=' . $this->patroninfo['PTYPE'] . '&tty=800';
     $result = self::my_curl_exec($url_suffix);
     return self::parse_patron_fines($result['body']);
   }
@@ -641,7 +744,7 @@ class iiitools {
     }
     return $fines;
   }
-
+  
   /**
   * Pays fines for whichever fines are passed through to the function.
   * $payment_arr looks like:
@@ -662,7 +765,7 @@ class iiitools {
   * @return array Payment results array.
   */
   function pay_fine($payment_arr) {
-
+    
     $fines = self::get_patron_fines();
     $sessionkey = $fines['sessionkey'];
     $url_suffix_stage1 = 'webapp/iii/ecom/validatePay.do';
@@ -675,7 +778,7 @@ class iiitools {
           $postvars .= '&selectedFees=' . trim($pid);
         }
       } else {
-        $postvars .= '&' . $pkey . '=' . urlencode($pval);
+        $postvars .= '&' . $pkey . '=' . urlencode($pval);        
       }
 
     }
@@ -778,16 +881,22 @@ class iiitools {
    * @param string $postvars POST variables to pass in GET format. Ex:  var1=foo&var2=bar
    * @param boolean $no_loop Overrides this functions default to loop through 10 times to get a result
    * @param int $curl_timeout Timeout, in seconds, before cURL gives up curl_exec.  (optional).  Default: 6
+   * @param boolean $no_parse If just getting a form to set a cookie, skip parsing result
    * @return array Array of parsed components from the cURL result as provided by parse_response()
    */
+  // <CraftySpace+>
+  public function my_curl_exec($url_suffix, $postvars = NULL, $no_loop = FALSE, $curl_timeout = 6, $login_query = FALSE, $ssl = TRUE, $no_parse = FALSE) {
+    //dpm(CURLOPT_POST);
+  // </CraftySpace+>
+  /* <CraftySpace->
   public function my_curl_exec($url_suffix, $postvars = NULL, $no_loop = FALSE, $curl_timeout = 6, $login_query = FALSE, $ssl = TRUE) {
+  // </CraftySpace-> */
 
     $iii_url = $ssl ? $this->iii_server_info['sslurl'] : $this->iii_server_info['nosslurl'];
     $agent = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.4; en-US; rv:1.9.0.7-locum) Gecko/2009021906 Firefox/3.5.3";
     if ($url_suffix[0] == '/') { $url_suffix = substr($url_suffix, 1); }
     $curl_url = $iii_url . '/' . $url_suffix;
-
-    // If we have POST variables to send, initializr them here
+    // If we have POST variables to send, initialize them here
     if ($postvars) {
       curl_setopt ($this->ch, CURLOPT_POST, 1);
       curl_setopt ($this->ch, CURLOPT_POSTFIELDS, $postvars);
@@ -799,14 +908,19 @@ class iiitools {
     while (!$body) {
       $body = curl_exec($this->ch);
       if ($no_loop) {
-        return self::parse_response($body);
+        return self::parse_response($body); 
       }
       $curl_loop++;
-      if ($curl_loop == 10) {
+      if ($curl_loop == 10) { 
         return "Unable to contact catalog. ($curl_url) Please try again later.<br/><br/>";
       }
     }
-    return self::parse_response($body);
+    // <CraftySpace+> copy function header's description of new param
+    if ($no_parse) {
+    	return $body;
+    }
+    // </CraftySpace+>
+   return self::parse_response($body);
   }
 
   /**
@@ -831,7 +945,6 @@ class iiitools {
       list($header,$value) = explode(': ', $header_line, 2);
       $response_header_array[$header] .= $value."\n";
     }
-
     return array("code" => $response_code, "header" => $response_header_array, "body" => $response_body);
   }
 
